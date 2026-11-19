@@ -1,7 +1,8 @@
-const CACHE = "scan-umkm-v1";
+const CACHE = "scan-umkm-v3";
 const FILES = [
-  "./", "./index.html", "./style.css", "./app.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
-  "./vendor/html5-qrcode.min.js", "./vendor/JsBarcode.all.min.js", "./vendor/qrcode.js",
+  "./", "./index.html", "./style.css", "./app.js",
+  "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
+  "./vendor/html5-qrcode.min.js",
 ];
 
 self.addEventListener("install", e => {
@@ -17,9 +18,25 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  /* Network-first untuk file utama agar selalu fresh */
+  const url = new URL(e.request.url);
+  const isMainFile = ["/index.html", "/style.css", "/app.js", "/sw.js", "/"].some(p => url.pathname.endsWith(p));
+  if (isMainFile) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  /* Cache-first untuk vendor/asset */
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
-      if (res.ok && new URL(e.request.url).origin === location.origin) {
+      if (res.ok && url.origin === location.origin) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
       }
