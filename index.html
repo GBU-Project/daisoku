@@ -43,8 +43,11 @@
   <section id="tab-history" class="tab" aria-label="Riwayat">
     <header class="bar"><h1>Riwayat</h1>
       <div class="bar-actions">
-        <button id="btn-export" class="btn small">Ekspor CSV</button>
-        <button id="btn-clear" class="btn small danger">Hapus Semua</button>
+        <button id="btn-export-csv" class="btn small">⬇ CSV</button>
+        <button id="btn-export-json" class="btn small">⬇ JSON</button>
+        <button id="btn-import" class="btn small">⬆ Impor</button>
+        <input id="import-input" type="file" accept="application/json,.json" hidden>
+        <button id="btn-clear" class="btn small danger">🗑 Hapus</button>
       </div>
     </header>
     <input id="search" type="search" placeholder="Cari kode atau catatan…">

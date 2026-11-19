@@ -290,22 +290,82 @@ $("#btn-clear").addEventListener("click", () => {
   }
 });
 
-/* Ekspor CSV (aman untuk Excel: BOM + cegah formula injection) */
+/* ---------- Ekspor & Impor ---------- */
 function csvCell(v) {
   let s = String(v ?? "");
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return '"' + s.replace(/"/g, '""') + '"';
 }
-$("#btn-export").addEventListener("click", () => {
-  if (!history.length) return toast("Riwayat kosong");
-  const lines = [["Waktu", "Kode", "Jenis", "Catatan"].map(csvCell).join(",")];
-  for (const h of history) lines.push([fmtDate(h.at), h.text, h.format, h.note || ""].map(csvCell).join(","));
-  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+
+function triggerDownload(blob, filename) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "riwayat-scan-" + new Date().toISOString().slice(0, 10) + ".csv";
+  a.download = filename;
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function getExportRows() {
+  const q = $("#search").value.trim().toLowerCase();
+  return q ? history.filter(h => h.text.toLowerCase().includes(q) || (h.note || "").toLowerCase().includes(q)) : history;
+}
+
+function doExportCSV(rows) {
+  const lines = [["Waktu", "Kode", "Jenis", "Catatan"].map(csvCell).join(",")];
+  for (const h of rows) lines.push([fmtDate(h.at), h.text, h.format, h.note || ""].map(csvCell).join(","));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  triggerDownload(blob, "riwayat-scan-" + new Date().toISOString().slice(0, 10) + ".csv");
+  toast("CSV diunduh (" + rows.length + " data)");
+}
+
+function doExportJSON(rows) {
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+  triggerDownload(blob, "riwayat-scan-" + new Date().toISOString().slice(0, 10) + ".json");
+  toast("JSON diunduh (" + rows.length + " data)");
+}
+
+$("#btn-export-csv").addEventListener("click", () => {
+  const rows = getExportRows();
+  if (!rows.length) return toast("Riwayat kosong");
+  doExportCSV(rows);
+});
+
+$("#btn-export-json").addEventListener("click", () => {
+  const rows = getExportRows();
+  if (!rows.length) return toast("Riwayat kosong");
+  doExportJSON(rows);
+});
+
+/* Impor dari JSON */
+$("#btn-import").addEventListener("click", () => $("#import-input").click());
+$("#import-input").addEventListener("change", e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error("bukan array");
+      let added = 0;
+      const existingIds = new Set(history.map(h => h.id));
+      for (const item of data) {
+        if (item && item.text && item.at && !existingIds.has(item.id)) {
+          history.push({
+            id: item.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            text: String(item.text), format: String(item.format || "Import"),
+            note: String(item.note || ""), at: item.at
+          });
+          added++;
+        }
+      }
+      history.sort((a, b) => new Date(b.at) - new Date(a.at));
+      saveHistory(history);
+      renderHistory();
+      toast(added + " data berhasil diimpor");
+    } catch { toast("File tidak valid atau bukan JSON ekspor"); }
+  };
+  reader.readAsText(f);
 });
 
 /* ---------- Buat kode ---------- */
