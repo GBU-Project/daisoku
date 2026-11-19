@@ -18,18 +18,36 @@
   <div id="cam-frame" class="cam-frame">
     <span></span><span></span><span></span><span></span>
   </div>
-  <!-- pojok kiri atas -->
+  
+  <!-- Pojok kiri atas -->
   <div class="cam-top-left">
     <button id="btn-torch" class="cam-icon-btn" title="Senter" hidden>🔦</button>
   </div>
-  <!-- pojok kanan atas -->
+  
+  <!-- Pojok kanan atas -->
   <div class="cam-top-right">
     <button id="btn-switch" class="cam-icon-btn" title="Ganti kamera" hidden>🔄</button>
   </div>
-  <!-- status text bawah kamera -->
+  
+  <!-- Status text overlay kamera -->
   <div class="cam-status">
     <span id="cam-status-text">Memulai…</span>
   </div>
+</div>
+
+<!-- BAR OPSI KONTROL (SCAN BERUNTUN & BIP) -->
+<div class="control-strip">
+  <label class="switch-wrap" title="Scan terus-menerus tanpa berhenti">
+    <input type="checkbox" id="opt-continuous" checked>
+    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    <span class="switch-txt">Scan Beruntun</span>
+  </label>
+
+  <label class="switch-wrap" title="Bunyi saat berhasil scan">
+    <input type="checkbox" id="opt-beep" checked>
+    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    <span class="switch-txt">🔊 Bip</span>
+  </label>
 </div>
 
 <!-- TABEL ITEM -->
@@ -40,29 +58,114 @@
     <span class="th-qty">Qty</span>
   </div>
   <ul id="item-list" class="item-list"></ul>
-  <p id="list-empty" class="empty">Belum ada item. Tekan SCAN atau ＋ Add.</p>
+  <p id="list-empty" class="empty">Belum ada item.<br>Arahkan kamera atau tekan ＋ Add.</p>
 </div>
 
-<!-- TOMBOL SCAN BESAR DI BAWAH (FAB) -->
+<!-- BOTTOM BAR (Satu Tangan) -->
 <div class="fab-bar">
   <div class="fab-left">
-    <button id="btn-clear" class="fab-sm danger" title="Hapus semua">🗑</button>
-    <button id="btn-export" class="fab-sm" title="Export CSV">CSV</button>
-    <button id="btn-export-json" class="fab-sm" title="Export JSON">JSON</button>
-    <button id="btn-import" class="fab-sm" title="Import">⬆</button>
-    <input id="import-input" type="file" accept=".json,application/json" hidden>
+    <button id="btn-open-export" class="fab-act-btn" title="Ekspor data">
+      <span class="btn-icon">📤</span>
+      <span>Ekspor</span>
+    </button>
+    <button id="btn-clear" class="fab-act-btn danger" title="Hapus semua">
+      <span class="btn-icon">🗑</span>
+      <span>Hapus</span>
+    </button>
   </div>
+  
+  <!-- TOMBOL SCAN BESAR JEMPOL -->
   <button id="btn-scan" class="fab-scan">
     <span class="fab-icon">▣</span>
     <span id="fab-label">SCAN</span>
   </button>
 </div>
 
-<!-- DIALOG: manual add -->
+<!-- ==================== DIALOG / LAYER ==================== -->
+
+<!-- LAYER KHUSUS: EKSPOR & CADANGAN -->
+<dialog id="export-dialog">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h3>📤 Ekspor &amp; Cadangan</h3>
+      <button type="button" class="close-x" id="btn-close-export">✕</button>
+    </div>
+    
+    <!-- Info Ringkasan -->
+    <div class="summary-card">
+      <div class="summary-col">
+        <span class="sum-num" id="sum-items">0</span>
+        <span class="sum-lbl">Jenis Item</span>
+      </div>
+      <div class="sum-divider"></div>
+      <div class="summary-col">
+        <span class="sum-num" id="sum-qty">0</span>
+        <span class="sum-lbl">Total QTY</span>
+      </div>
+    </div>
+
+    <!-- Pilihan Menu Ekspor -->
+    <div class="export-menu">
+      <button id="btn-export-xlsx" class="menu-opt-btn primary-opt">
+        <span class="opt-icon">📊</span>
+        <div class="opt-text">
+          <strong>Unduh Excel (.xlsx)</strong>
+          <small>Bisa langsung dibuka di Microsoft Excel / WPS</small>
+        </div>
+      </button>
+
+      <button id="btn-export-csv" class="menu-opt-btn">
+        <span class="opt-icon">📄</span>
+        <div class="opt-text">
+          <strong>Unduh CSV (.csv)</strong>
+          <small>Format teks tabel standar (Google Sheets, POS)</small>
+        </div>
+      </button>
+
+      <button id="btn-export-json" class="menu-opt-btn">
+        <span class="opt-icon">💾</span>
+        <div class="opt-text">
+          <strong>Cadangkan Data (.json)</strong>
+          <small>Untuk backup aman atau dipindah ke HP lain</small>
+        </div>
+      </button>
+
+      <button id="btn-import-trigger" class="menu-opt-btn">
+        <span class="opt-icon">📂</span>
+        <div class="opt-text">
+          <strong>Pulihkan / Impor JSON</strong>
+          <small>Masukkan file backup dari HP sebelumnya</small>
+        </div>
+      </button>
+      <input id="import-input" type="file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+</dialog>
+
+<!-- DIALOG: INPUT QTY MANUAL / SINGLE SCAN (SAAT UNCHECK SCAN BERUNTUN) -->
+<dialog id="single-scan-dialog">
+  <form method="dialog" class="sheet">
+    <h3 id="single-title">Hasil Scan</h3>
+    <p id="single-code" class="edit-code"></p>
+    <label class="lbl">Jumlah (QTY)
+      <div class="qty-row">
+        <button type="button" id="single-minus" class="qty-btn">−</button>
+        <input id="single-qty" type="number" inputmode="numeric" min="1" value="1" class="qty-field">
+        <button type="button" id="single-plus" class="qty-btn">＋</button>
+      </div>
+    </label>
+    <div class="dlg-row">
+      <button class="btn primary" value="save">✔ Simpan</button>
+      <button class="btn" value="close">✕ Batal</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- DIALOG: TAMBAH MANUAL -->
 <dialog id="add-dialog">
   <form method="dialog" class="sheet">
     <h3>Tambah Manual</h3>
-    <input id="add-code" type="text" placeholder="Kode / nama produk" autocomplete="off" class="inp">
+    <input id="add-code" type="text" placeholder="Ketik kode barcode / nama item" autocomplete="off" class="inp">
     <label class="lbl">QTY
       <div class="qty-row">
         <button type="button" id="add-minus" class="qty-btn">−</button>
@@ -71,13 +174,13 @@
       </div>
     </label>
     <div class="dlg-row">
-      <button class="btn primary" value="save">✔ Simpan</button>
-      <button class="btn" value="close">✕</button>
+      <button class="btn primary" value="save">✔ Tambah</button>
+      <button class="btn" value="close">✕ Batal</button>
     </div>
   </form>
 </dialog>
 
-<!-- DIALOG: edit QTY -->
+<!-- DIALOG: KOREKSI QTY -->
 <dialog id="edit-dialog">
   <form method="dialog" class="sheet">
     <h3>Koreksi QTY</h3>
@@ -89,7 +192,7 @@
         <button type="button" id="edit-plus" class="qty-btn">＋</button>
       </div>
     </label>
-    <p class="hint-txt">Set ke 0 untuk hapus item ini.</p>
+    <p class="hint-txt">Set QTY ke 0 untuk menghapus item ini.</p>
     <div class="dlg-row">
       <button class="btn primary" value="save">✔ Simpan</button>
       <button class="btn" value="close">✕ Batal</button>
@@ -100,6 +203,7 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/html5-qrcode.min.js"></script>
+<script src="vendor/xlsx.mini.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
