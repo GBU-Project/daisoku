@@ -1,38 +1,29 @@
 "use strict";
 
-/* ---------- Utils ---------- */
+/* ===== Utils ===== */
 const $ = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const STORE_KEY = "scanumkm.history.v2";
+const STORE_KEY = "scanumkm.items.v1";
 
 function toast(msg) {
   const t = $("#toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+  toast._t = setTimeout(() => t.classList.remove("show"), 2000);
 }
 
-function loadHistory() {
+function loadItems() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch { return []; }
 }
-function saveHistory() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(history)); }
+function saveItems() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(items)); }
   catch { toast("Penyimpanan penuh"); }
 }
 
-let history = loadHistory();
+/* items: [{ id, code, qty, at }] */
+let items = loadItems();
 
-/* ---------- Tab ---------- */
-function showTab(name) {
-  $$(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
-  $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  if (name !== "scan") stopScan();
-  if (name === "history") renderHistory();
-}
-$$(".tabbar button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
-
-/* ---------- Scanner ---------- */
+/* ===== Scanner ===== */
 let scanner = null, scanning = false;
 let cameras = [], camIndex = 0, torchOn = false;
 let lastCode = "", lastAt = 0;
@@ -40,26 +31,34 @@ let lastCode = "", lastAt = 0;
 const FORMATS = () => {
   const F = Html5QrcodeSupportedFormats;
   return [F.QR_CODE, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E,
-    F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR, F.DATA_MATRIX, F.PDF_417, F.AZTEC];
+    F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR,
+    F.DATA_MATRIX, F.PDF_417, F.AZTEC];
 };
 
 function getScanner() {
-  if (!scanner) scanner = new Html5Qrcode("reader", { formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false });
+  if (!scanner) scanner = new Html5Qrcode("reader", {
+    formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false
+  });
   return scanner;
 }
 
 async function startScan() {
   if (scanning) return;
-  if (!window.isSecureContext) { toast("Kamera butuh HTTPS atau localhost"); return; }
+  if (!window.isSecureContext) { toast("Butuh HTTPS atau localhost"); return; }
   const s = getScanner();
   try { if (!cameras.length) cameras = await Html5Qrcode.getCameras(); } catch {}
-  const cfg = { fps: 12, qrbox: (w, h) => { const side = Math.floor(Math.min(w, h) * 0.72); return { width: side, height: side }; }, aspectRatio: 1 };
+  const cfg = {
+    fps: 15,
+    qrbox: (w, h) => { const side = Math.floor(Math.min(w, h) * 0.6); return { width: side, height: side }; },
+    aspectRatio: 16 / 9,
+  };
   const source = (camIndex > 0 && cameras[camIndex]) ? cameras[camIndex].id : { facingMode: "environment" };
   try {
     await s.start(source, cfg, onDecoded, () => {});
     scanning = true;
-    $("#btn-start").textContent = "⏹ Berhenti";
-    $("#scan-hint").hidden = false;
+    const btn = $("#btn-start");
+    btn.textContent = "⏹ Berhenti";
+    btn.classList.add("stop");
     setupTorch();
     $("#btn-switch").hidden = cameras.length < 2;
   } catch (e) {
@@ -72,11 +71,12 @@ async function stopScan() {
   if (!scanner || !scanning) return;
   try { await scanner.stop(); scanner.clear(); } catch {}
   scanning = false; torchOn = false;
-  $("#btn-start").textContent = "▶ Mulai Scan";
+  const btn = $("#btn-start");
+  btn.textContent = "▶ Mulai Scan";
+  btn.classList.remove("stop");
   $("#btn-torch").hidden = true;
   $("#btn-torch").classList.remove("on");
   $("#btn-switch").hidden = true;
-  $("#scan-hint").hidden = true;
 }
 
 function setupTorch() {
@@ -102,187 +102,187 @@ $("#btn-switch").addEventListener("click", async () => {
 
 $("#btn-start").addEventListener("click", () => scanning ? stopScan() : startScan());
 
-function onDecoded(text, result) {
+/* ===== Decode handler ===== */
+function onDecoded(text) {
   const now = Date.now();
-  if (text === lastCode && now - lastAt < 2500) return;
+  if (text === lastCode && now - lastAt < 1500) return;
   lastCode = text; lastAt = now;
-  try { navigator.vibrate && navigator.vibrate(80); } catch {}
-  const format = result?.result?.format?.formatName || "Barcode";
-  stopScan();
-  openQtyDialog({ text, format });
-}
 
-/* Scan dari foto */
-$("#btn-file").addEventListener("click", () => $("#file-input").click());
-$("#file-input").addEventListener("change", async e => {
-  const f = e.target.files[0]; e.target.value = "";
-  if (!f) return;
-  await stopScan();
-  try {
-    const res = await getScanner().scanFileV2(f, false);
-    openQtyDialog({ text: res.decodedText, format: res.result.format.formatName });
-  } catch { toast("Kode tidak ditemukan pada foto"); }
-});
+  try { navigator.vibrate && navigator.vibrate(60); } catch {}
 
-/* Input manual */
-$("#manual-form").addEventListener("submit", e => {
-  e.preventDefault();
-  const v = $("#manual-input").value.trim();
-  if (!v) return;
-  $("#manual-input").value = "";
-  openQtyDialog({ text: v, format: "Manual" });
-});
-
-/* ---------- Dialog QTY ---------- */
-let currentScan = null;
-
-function openQtyDialog(scan) {
-  currentScan = scan;
-  $("#dlg-format").textContent = scan.format;
-  $("#dlg-code").textContent = scan.text;
-  $("#qty-input").value = 1;
-  $("#dlg-note").value = "";
-  const d = $("#qty-dialog");
-  if (!d.open) d.showModal();
-  setTimeout(() => $("#qty-input").select(), 100);
-}
-
-/* Tombol +/- QTY */
-$("#qty-minus").addEventListener("click", () => {
-  const inp = $("#qty-input");
-  const v = parseInt(inp.value) || 1;
-  if (v > 1) inp.value = v - 1;
-});
-$("#qty-plus").addEventListener("click", () => {
-  const inp = $("#qty-input");
-  inp.value = (parseInt(inp.value) || 0) + 1;
-});
-
-/* Simpan dari dialog */
-$("#qty-dialog").addEventListener("close", () => {
-  const d = $("#qty-dialog");
-  if (d.returnValue === "save" && currentScan) {
-    const qty = Math.max(1, parseInt($("#qty-input").value) || 1);
-    const note = $("#dlg-note").value.trim();
-    addEntry({ text: currentScan.text, format: currentScan.format, qty, note });
-    toast("✔ Tersimpan — QTY: " + qty);
+  /* Cek apakah kode sudah ada */
+  const existing = items.find(i => i.code === text);
+  if (existing) {
+    existing.qty += 1;
+    existing.at = new Date().toISOString();
+    toast("＋1 → " + text + "  (QTY: " + existing.qty + ")");
+  } else {
+    items.unshift({ id: uid(), code: text, qty: 1, at: new Date().toISOString() });
+    toast("Ditambah: " + text);
   }
-  d.returnValue = "";
-  currentScan = null;
-});
-
-/* ---------- Riwayat ---------- */
-function addEntry({ text, format, qty, note }) {
-  history.unshift({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    text, format, qty: qty || 1, note: note || "", at: new Date().toISOString()
-  });
-  if (history.length > 5000) history.length = 5000;
-  saveHistory();
+  saveItems();
+  renderList();
 }
 
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+}
+
+/* ===== Render list ===== */
 function fmtDate(iso) {
   try { return new Date(iso).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }); }
-  catch { return iso; }
+  catch { return ""; }
 }
 
-function renderHistory() {
-  const q = $("#search").value.trim().toLowerCase();
-  const rows = q ? history.filter(h => h.text.toLowerCase().includes(q) || (h.note || "").toLowerCase().includes(q)) : history;
-  const ul = $("#history-list");
+function renderList() {
+  const ul = $("#item-list");
   ul.replaceChildren();
-  $("#history-empty").hidden = rows.length > 0;
-  $("#history-count").textContent = rows.length ? rows.length + " item" : "";
+  $("#item-count").textContent = items.length ? "(" + items.length + ")" : "";
+  $("#list-empty").hidden = items.length > 0;
 
-  for (const h of rows) {
+  for (const item of items) {
     const li = document.createElement("li");
-    li.className = "item";
+    li.className = "item-row";
 
-    const info = document.createElement("div"); info.className = "item-info";
-    const code = document.createElement("div"); code.className = "item-code"; code.textContent = h.text;
-    const meta = document.createElement("div"); meta.className = "item-meta";
-    meta.textContent = h.format + " · " + fmtDate(h.at);
-    info.append(code, meta);
-    if (h.note) {
-      const n = document.createElement("div"); n.className = "item-note"; n.textContent = h.note;
-      info.append(n);
-    }
+    const info = document.createElement("div");
+    info.className = "item-code";
+    info.innerHTML = `<div>${escHtml(item.code)}</div><div class="item-sub">${fmtDate(item.at)}</div>`;
 
-    const qty = document.createElement("div"); qty.className = "item-qty"; qty.textContent = h.qty || 1;
+    /* QTY — tap to edit */
+    const qtyWrap = document.createElement("div");
+    qtyWrap.className = "item-qty-wrap";
+    const qtyEl = document.createElement("div");
+    qtyEl.className = "qty-tap";
+    qtyEl.textContent = item.qty;
+    qtyEl.title = "Tap untuk koreksi QTY";
+    qtyEl.addEventListener("click", () => openEditDialog(item));
+    qtyWrap.append(qtyEl);
 
-    const acts = document.createElement("div"); acts.className = "item-acts";
-    const bEdit = mkBtn("✏ Edit", () => {
-      const nqty = prompt("Ubah QTY untuk:\n" + h.text, h.qty || 1);
-      if (nqty !== null) {
-        h.qty = Math.max(1, parseInt(nqty) || 1);
-        saveHistory(); renderHistory();
-      }
-    });
-    const bDel = mkBtn("🗑", () => {
-      history = history.filter(x => x.id !== h.id); saveHistory(); renderHistory();
-    });
-    bDel.classList.add("del");
-    acts.append(bEdit, bDel);
-
-    li.append(info, qty, acts);
+    li.append(info, qtyWrap);
     ul.append(li);
   }
 }
 
-function mkBtn(label, fn) {
-  const b = document.createElement("button");
-  b.type = "button"; b.textContent = label; b.addEventListener("click", fn);
-  return b;
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-$("#search").addEventListener("input", renderHistory);
+renderList();
 
+/* ===== Dialog: Add manual ===== */
+$("#btn-add").addEventListener("click", () => {
+  $("#add-code").value = "";
+  $("#add-qty").value = 1;
+  if (!$("#add-dialog").open) $("#add-dialog").showModal();
+  setTimeout(() => $("#add-code").focus(), 80);
+});
+
+$("#add-minus").addEventListener("click", () => {
+  const inp = $("#add-qty");
+  if ((parseInt(inp.value) || 1) > 1) inp.value = (parseInt(inp.value) || 1) - 1;
+});
+$("#add-plus").addEventListener("click", () => {
+  $("#add-qty").value = (parseInt($("#add-qty").value) || 0) + 1;
+});
+
+$("#add-dialog").addEventListener("close", () => {
+  if ($("#add-dialog").returnValue !== "save") return;
+  const code = $("#add-code").value.trim();
+  if (!code) return;
+  const qty = Math.max(1, parseInt($("#add-qty").value) || 1);
+  const existing = items.find(i => i.code === code);
+  if (existing) {
+    existing.qty += qty;
+    existing.at = new Date().toISOString();
+    toast("Updated: " + code + "  QTY: " + existing.qty);
+  } else {
+    items.unshift({ id: uid(), code, qty, at: new Date().toISOString() });
+    toast("Ditambah: " + code);
+  }
+  saveItems(); renderList();
+  $("#add-dialog").returnValue = "";
+});
+
+/* ===== Dialog: Edit QTY ===== */
+let editTarget = null;
+
+function openEditDialog(item) {
+  editTarget = item;
+  $("#edit-code").textContent = item.code;
+  $("#edit-qty").value = item.qty;
+  if (!$("#edit-dialog").open) $("#edit-dialog").showModal();
+  setTimeout(() => { const inp = $("#edit-qty"); inp.select && inp.select(); }, 80);
+}
+
+$("#edit-minus").addEventListener("click", () => {
+  const inp = $("#edit-qty");
+  const v = parseInt(inp.value) || 0;
+  if (v > 0) inp.value = v - 1;
+});
+$("#edit-plus").addEventListener("click", () => {
+  $("#edit-qty").value = (parseInt($("#edit-qty").value) || 0) + 1;
+});
+
+$("#edit-dialog").addEventListener("close", () => {
+  if ($("#edit-dialog").returnValue !== "save" || !editTarget) { editTarget = null; return; }
+  const qty = parseInt($("#edit-qty").value) || 0;
+  if (qty <= 0) {
+    items = items.filter(i => i.id !== editTarget.id);
+    toast("Item dihapus");
+  } else {
+    editTarget.qty = qty;
+    editTarget.at = new Date().toISOString();
+    toast("QTY diperbarui: " + qty);
+  }
+  editTarget = null;
+  saveItems(); renderList();
+  $("#edit-dialog").returnValue = "";
+});
+
+/* ===== Clear all ===== */
 $("#btn-clear").addEventListener("click", () => {
-  if (!history.length) return;
-  if (confirm("Hapus semua riwayat? Tidak bisa dikembalikan.")) {
-    history = []; saveHistory(); renderHistory();
+  if (!items.length) return;
+  if (confirm("Hapus semua item? Tidak bisa dikembalikan.")) {
+    items = []; saveItems(); renderList();
   }
 });
 
-/* ---------- Ekspor & Impor ---------- */
+/* ===== Export CSV ===== */
 function csvCell(v) {
   let s = String(v ?? "");
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return '"' + s.replace(/"/g, '""') + '"';
 }
-
-function triggerDownload(blob, filename) {
+function triggerDownload(blob, name) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.download = name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
-function getExportRows() {
-  const q = $("#search").value.trim().toLowerCase();
-  return q ? history.filter(h => h.text.toLowerCase().includes(q) || (h.note || "").toLowerCase().includes(q)) : history;
-}
-
-$("#btn-export-csv").addEventListener("click", () => {
-  const rows = getExportRows();
-  if (!rows.length) return toast("Riwayat kosong");
-  const lines = [["Waktu", "Kode", "Jenis", "QTY", "Catatan"].map(csvCell).join(",")];
-  for (const h of rows)
-    lines.push([fmtDate(h.at), h.text, h.format, h.qty || 1, h.note || ""].map(csvCell).join(","));
-  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-  triggerDownload(blob, "scan-umkm-" + new Date().toISOString().slice(0, 10) + ".csv");
-  toast("CSV diunduh (" + rows.length + " data)");
+$("#btn-export").addEventListener("click", () => {
+  if (!items.length) return toast("Belum ada data");
+  const lines = [["Waktu", "Kode", "QTY"].map(csvCell).join(",")];
+  for (const i of items)
+    lines.push([fmtDate(i.at), i.code, i.qty].map(csvCell).join(","));
+  triggerDownload(
+    new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }),
+    "scan-umkm-" + new Date().toISOString().slice(0, 10) + ".csv"
+  );
+  toast("CSV diunduh (" + items.length + " item)");
 });
 
 $("#btn-export-json").addEventListener("click", () => {
-  const rows = getExportRows();
-  if (!rows.length) return toast("Riwayat kosong");
-  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
-  triggerDownload(blob, "scan-umkm-" + new Date().toISOString().slice(0, 10) + ".json");
-  toast("JSON diunduh (" + rows.length + " data)");
+  if (!items.length) return toast("Belum ada data");
+  triggerDownload(
+    new Blob([JSON.stringify(items, null, 2)], { type: "application/json" }),
+    "scan-umkm-" + new Date().toISOString().slice(0, 10) + ".json"
+  );
+  toast("JSON diunduh (" + items.length + " item)");
 });
 
+/* ===== Import JSON ===== */
 $("#btn-import").addEventListener("click", () => $("#import-input").click());
 $("#import-input").addEventListener("change", e => {
   const f = e.target.files[0]; e.target.value = "";
@@ -293,25 +293,24 @@ $("#import-input").addEventListener("change", e => {
       const data = JSON.parse(ev.target.result);
       if (!Array.isArray(data)) throw new Error();
       let added = 0;
-      const ids = new Set(history.map(h => h.id));
+      const ids = new Set(items.map(i => i.id));
       for (const item of data) {
-        if (item && item.text && item.at && !ids.has(item.id)) {
-          history.push({ id: item.id, text: String(item.text), format: String(item.format || "Import"),
-            qty: parseInt(item.qty) || 1, note: String(item.note || ""), at: item.at });
+        if (item && item.code && !ids.has(item.id)) {
+          items.push({ id: item.id || uid(), code: String(item.code),
+            qty: parseInt(item.qty) || 1, at: item.at || new Date().toISOString() });
           added++;
         }
       }
-      history.sort((a, b) => new Date(b.at) - new Date(a.at));
-      saveHistory(); renderHistory();
-      toast(added + " data berhasil diimpor");
+      items.sort((a, b) => new Date(b.at) - new Date(a.at));
+      saveItems(); renderList();
+      toast(added + " item diimpor");
     } catch { toast("File tidak valid"); }
   };
   reader.readAsText(f);
 });
 
-/* ---------- PWA ---------- */
+/* ===== PWA ===== */
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
-
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopScan(); });
