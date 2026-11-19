@@ -9,7 +9,7 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove("show"), 2000);
+  toast._t = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
 function loadItems() {
@@ -20,7 +20,6 @@ function saveItems() {
   catch { toast("Penyimpanan penuh"); }
 }
 
-/* items: [{ id, code, qty, at }] */
 let items = loadItems();
 
 /* ===== Scanner ===== */
@@ -37,7 +36,9 @@ const FORMATS = () => {
 
 function getScanner() {
   if (!scanner) scanner = new Html5Qrcode("reader", {
-    formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false
+    formatsToSupport: FORMATS(),
+    useBarCodeDetectorIfSupported: true,
+    verbose: false,
   });
   return scanner;
 }
@@ -49,36 +50,53 @@ function setStatus(msg, active = false) {
   if (frame) frame.classList.toggle("active", active);
 }
 
+function setScanBtn(isScanning) {
+  const btn = $("#btn-scan");
+  const lbl = $("#fab-label");
+  if (!btn) return;
+  if (isScanning) {
+    btn.classList.add("stop");
+    if (lbl) lbl.textContent = "STOP";
+    btn.querySelector(".fab-icon").textContent = "⏹";
+  } else {
+    btn.classList.remove("stop");
+    if (lbl) lbl.textContent = "SCAN";
+    btn.querySelector(".fab-icon").textContent = "▣";
+  }
+}
+
 async function startScan() {
   if (scanning) return;
   if (!window.isSecureContext) { toast("Butuh HTTPS atau localhost"); return; }
   setStatus("Membuka kamera…");
   const s = getScanner();
   try { if (!cameras.length) cameras = await Html5Qrcode.getCameras(); } catch {}
+
   const cfg = {
     fps: 15,
     qrbox: (w, h) => {
-      const side = Math.floor(Math.min(w, h) * 0.75);
-      return { width: side, height: Math.floor(side * 0.6) };
+      const side = Math.floor(Math.min(w, h) * 0.72);
+      return { width: Math.floor(side * 1.4) > w ? side : Math.floor(side * 1.4), height: side };
     },
     aspectRatio: 16 / 9,
   };
-  const source = (camIndex > 0 && cameras[camIndex]) ? cameras[camIndex].id : { facingMode: "environment" };
+  const source = (camIndex > 0 && cameras[camIndex])
+    ? cameras[camIndex].id
+    : { facingMode: "environment" };
   try {
     await s.start(source, cfg, onDecoded, () => {});
     scanning = true;
-    const btn = $("#btn-start");
-    if (btn) { btn.textContent = "⏸"; btn.title = "Pause"; }
-    setStatus("🟢 Scanning… arahkan ke barcode", true);
+    setScanBtn(true);
+    setStatus("🟢 Arahkan ke barcode / QR", true);
     setupTorch();
     $("#btn-switch").hidden = cameras.length < 2;
   } catch (e) {
     const msg = String(e && e.message || e);
-    const errMsg = /permission|denied|NotAllowed/i.test(msg)
-      ? "❌ Izin kamera ditolak — aktifkan di pengaturan browser"
+    const err = /permission|denied|NotAllowed/i.test(msg)
+      ? "❌ Izin kamera ditolak"
       : "❌ Kamera tidak bisa dibuka";
-    setStatus(errMsg, false);
-    toast(errMsg);
+    setStatus(err, false);
+    toast(err);
   }
 }
 
@@ -86,9 +104,8 @@ async function stopScan() {
   if (!scanner || !scanning) return;
   try { await scanner.stop(); scanner.clear(); } catch {}
   scanning = false; torchOn = false;
-  const btn = $("#btn-start");
-  if (btn) { btn.textContent = "▶"; btn.title = "Resume"; }
-  setStatus("⏸ Dijeda — tap ▶ untuk lanjut", false);
+  setScanBtn(false);
+  setStatus("⏸ Dijeda", false);
   $("#btn-torch").hidden = true;
   $("#btn-torch").classList.remove("on");
   $("#btn-switch").hidden = true;
@@ -115,9 +132,10 @@ $("#btn-switch").addEventListener("click", async () => {
   await stopScan(); await startScan();
 });
 
-$("#btn-start").addEventListener("click", () => scanning ? stopScan() : startScan());
+/* BIG SCAN button */
+$("#btn-scan").addEventListener("click", () => scanning ? stopScan() : startScan());
 
-/* ===== Decode handler ===== */
+/* ===== Decode ===== */
 function onDecoded(text) {
   const now = Date.now();
   if (text === lastCode && now - lastAt < 1500) return;
@@ -125,15 +143,14 @@ function onDecoded(text) {
 
   try { navigator.vibrate && navigator.vibrate(60); } catch {}
 
-  /* Cek apakah kode sudah ada */
   const existing = items.find(i => i.code === text);
   if (existing) {
     existing.qty += 1;
     existing.at = new Date().toISOString();
-    toast("＋1 → " + text + "  (QTY: " + existing.qty + ")");
+    toast("＋1  →  " + text + "   QTY: " + existing.qty);
   } else {
     items.unshift({ id: uid(), code: text, qty: 1, at: new Date().toISOString() });
-    toast("Ditambah: " + text);
+    toast("✔ Ditambah: " + text);
   }
   saveItems();
   renderList();
@@ -143,7 +160,7 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 }
 
-/* ===== Render list ===== */
+/* ===== Render ===== */
 function fmtDate(iso) {
   try { return new Date(iso).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }); }
   catch { return ""; }
@@ -160,26 +177,25 @@ function renderList() {
     li.className = "item-row";
 
     const info = document.createElement("div");
-    info.className = "item-code";
-    info.innerHTML = `<div>${escHtml(item.code)}</div><div class="item-sub">${fmtDate(item.at)}</div>`;
+    info.className = "item-info";
+    info.innerHTML =
+      `<div class="item-code">${escHtml(item.code)}</div>` +
+      `<div class="item-sub">${fmtDate(item.at)}</div>`;
 
-    /* QTY — tap to edit */
-    const qtyWrap = document.createElement("div");
-    qtyWrap.className = "item-qty-wrap";
     const qtyEl = document.createElement("div");
     qtyEl.className = "qty-tap";
     qtyEl.textContent = item.qty;
-    qtyEl.title = "Tap untuk koreksi QTY";
+    qtyEl.title = "Tap untuk koreksi";
     qtyEl.addEventListener("click", () => openEditDialog(item));
-    qtyWrap.append(qtyEl);
 
-    li.append(info, qtyWrap);
+    li.append(info, qtyEl);
     ul.append(li);
   }
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 renderList();
@@ -192,13 +208,18 @@ $("#btn-add").addEventListener("click", () => {
   setTimeout(() => $("#add-code").focus(), 80);
 });
 
-$("#add-minus").addEventListener("click", () => {
-  const inp = $("#add-qty");
-  if ((parseInt(inp.value) || 1) > 1) inp.value = (parseInt(inp.value) || 1) - 1;
-});
-$("#add-plus").addEventListener("click", () => {
-  $("#add-qty").value = (parseInt($("#add-qty").value) || 0) + 1;
-});
+function bindPlusMinus(minusId, plusId, fieldId, min = 0) {
+  $(minusId).addEventListener("click", () => {
+    const inp = $(fieldId);
+    const v = parseInt(inp.value) || 0;
+    if (v > min) inp.value = v - 1;
+  });
+  $(plusId).addEventListener("click", () => {
+    $(fieldId).value = (parseInt($(fieldId).value) || 0) + 1;
+  });
+}
+bindPlusMinus("#add-minus", "#add-plus", "#add-qty", 1);
+bindPlusMinus("#edit-minus", "#edit-plus", "#edit-qty", 0);
 
 $("#add-dialog").addEventListener("close", () => {
   if ($("#add-dialog").returnValue !== "save") return;
@@ -212,7 +233,7 @@ $("#add-dialog").addEventListener("close", () => {
     toast("Updated: " + code + "  QTY: " + existing.qty);
   } else {
     items.unshift({ id: uid(), code, qty, at: new Date().toISOString() });
-    toast("Ditambah: " + code);
+    toast("✔ Ditambah: " + code);
   }
   saveItems(); renderList();
   $("#add-dialog").returnValue = "";
@@ -229,15 +250,6 @@ function openEditDialog(item) {
   setTimeout(() => { const inp = $("#edit-qty"); inp.select && inp.select(); }, 80);
 }
 
-$("#edit-minus").addEventListener("click", () => {
-  const inp = $("#edit-qty");
-  const v = parseInt(inp.value) || 0;
-  if (v > 0) inp.value = v - 1;
-});
-$("#edit-plus").addEventListener("click", () => {
-  $("#edit-qty").value = (parseInt($("#edit-qty").value) || 0) + 1;
-});
-
 $("#edit-dialog").addEventListener("close", () => {
   if ($("#edit-dialog").returnValue !== "save" || !editTarget) { editTarget = null; return; }
   const qty = parseInt($("#edit-qty").value) || 0;
@@ -247,22 +259,22 @@ $("#edit-dialog").addEventListener("close", () => {
   } else {
     editTarget.qty = qty;
     editTarget.at = new Date().toISOString();
-    toast("QTY diperbarui: " + qty);
+    toast("QTY → " + qty);
   }
   editTarget = null;
   saveItems(); renderList();
   $("#edit-dialog").returnValue = "";
 });
 
-/* ===== Clear all ===== */
+/* ===== Clear ===== */
 $("#btn-clear").addEventListener("click", () => {
   if (!items.length) return;
-  if (confirm("Hapus semua item? Tidak bisa dikembalikan.")) {
+  if (confirm("Hapus semua item?")) {
     items = []; saveItems(); renderList();
   }
 });
 
-/* ===== Export CSV ===== */
+/* ===== Export / Import ===== */
 function csvCell(v) {
   let s = String(v ?? "");
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
@@ -297,7 +309,6 @@ $("#btn-export-json").addEventListener("click", () => {
   toast("JSON diunduh (" + items.length + " item)");
 });
 
-/* ===== Import JSON ===== */
 $("#btn-import").addEventListener("click", () => $("#import-input").click());
 $("#import-input").addEventListener("change", e => {
   const f = e.target.files[0]; e.target.value = "";
@@ -325,13 +336,11 @@ $("#import-input").addEventListener("change", e => {
 });
 
 /* ===== PWA ===== */
-if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+if ("serviceWorker" in navigator &&
+    (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopScan(); });
 
-/* ===== AUTO-START kamera saat halaman dimuat ===== */
-window.addEventListener("load", () => {
-  // Tunda sedikit agar DOM siap
-  setTimeout(() => startScan(), 300);
-});
+/* ===== AUTO-START ===== */
+window.addEventListener("load", () => setTimeout(() => startScan(), 300));

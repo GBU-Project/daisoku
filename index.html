@@ -15,14 +15,20 @@
 <!-- KAMERA -->
 <div class="cam-wrap">
   <div id="reader"></div>
-  <div id="cam-frame" class="cam-frame"><span></span><span></span><span></span><span></span></div>
-  <div class="cam-top-bar">
-    <button id="btn-torch" class="cam-btn" title="Senter" hidden>🔦</button>
-    <button id="btn-switch" class="cam-btn" title="Ganti kamera" hidden>🔄</button>
-    <button id="btn-start" class="cam-btn" title="Pause/Resume">⏸</button>
+  <div id="cam-frame" class="cam-frame">
+    <span></span><span></span><span></span><span></span>
   </div>
+  <!-- pojok kiri atas -->
+  <div class="cam-top-left">
+    <button id="btn-torch" class="cam-icon-btn" title="Senter" hidden>🔦</button>
+  </div>
+  <!-- pojok kanan atas -->
+  <div class="cam-top-right">
+    <button id="btn-switch" class="cam-icon-btn" title="Ganti kamera" hidden>🔄</button>
+  </div>
+  <!-- status text bawah kamera -->
   <div class="cam-status">
-    <span id="cam-status-text">Memulai kamera…</span>
+    <span id="cam-status-text">Memulai…</span>
   </div>
 </div>
 
@@ -33,25 +39,30 @@
     <button id="btn-add" class="add-btn">＋ Add</button>
     <span class="th-qty">Qty</span>
   </div>
-
   <ul id="item-list" class="item-list"></ul>
-  <p id="list-empty" class="empty">Belum ada item. Mulai scan atau tap ＋ Add.</p>
+  <p id="list-empty" class="empty">Belum ada item. Tekan SCAN atau ＋ Add.</p>
 </div>
 
-<!-- BOTTOM BAR -->
-<div class="bottom-bar">
-  <button id="btn-clear" class="bot-btn danger">🗑 Hapus</button>
-  <button id="btn-export" class="bot-btn">⬇ CSV</button>
-  <button id="btn-export-json" class="bot-btn">⬇ JSON</button>
-  <button id="btn-import" class="bot-btn">⬆ Impor</button>
-  <input id="import-input" type="file" accept=".json,application/json" hidden>
+<!-- TOMBOL SCAN BESAR DI BAWAH (FAB) -->
+<div class="fab-bar">
+  <div class="fab-left">
+    <button id="btn-clear" class="fab-sm danger" title="Hapus semua">🗑</button>
+    <button id="btn-export" class="fab-sm" title="Export CSV">CSV</button>
+    <button id="btn-export-json" class="fab-sm" title="Export JSON">JSON</button>
+    <button id="btn-import" class="fab-sm" title="Import">⬆</button>
+    <input id="import-input" type="file" accept=".json,application/json" hidden>
+  </div>
+  <button id="btn-scan" class="fab-scan">
+    <span class="fab-icon">▣</span>
+    <span id="fab-label">SCAN</span>
+  </button>
 </div>
 
 <!-- DIALOG: manual add -->
 <dialog id="add-dialog">
   <form method="dialog" class="sheet">
     <h3>Tambah Manual</h3>
-    <input id="add-code" type="text" placeholder="Kode barcode / nama produk" autocomplete="off" class="inp">
+    <input id="add-code" type="text" placeholder="Kode / nama produk" autocomplete="off" class="inp">
     <label class="lbl">QTY
       <div class="qty-row">
         <button type="button" id="add-minus" class="qty-btn">−</button>
