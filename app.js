@@ -4,8 +4,8 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-const STORE_KEY = "scanumkm.items.v1";
-const OPTS_KEY = "scanumkm.opts.v2";
+const STORE_KEY = "daisoku.items.v1";
+const OPTS_KEY = "daisoku.opts.v1";
 
 function toast(msg) {
   const t = $("#toast");
@@ -16,7 +16,10 @@ function toast(msg) {
 }
 
 function loadItems() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) ||
+           JSON.parse(localStorage.getItem("scanumkm.items.v1")) || [];
+  } catch { return []; }
 }
 function saveItems() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(items)); }
@@ -25,7 +28,8 @@ function saveItems() {
 
 function loadOpts() {
   try {
-    return JSON.parse(localStorage.getItem(OPTS_KEY)) || { continuous: true, beep: true };
+    return JSON.parse(localStorage.getItem(OPTS_KEY)) ||
+           JSON.parse(localStorage.getItem("scanumkm.opts.v2")) || { continuous: true, beep: true };
   } catch {
     return { continuous: true, beep: true };
   }
@@ -412,7 +416,7 @@ $("#btn-export-xlsx").addEventListener("click", () => {
   if (!items.length) return toast("Belum ada data untuk diekspor");
 
   const today = new Date().toISOString().slice(0, 10);
-  const filename = `scan-umkm-${today}.xlsx`;
+  const filename = `daisoku-${today}.xlsx`;
 
   try {
     if (typeof XLSX !== "undefined") {
@@ -465,7 +469,7 @@ function doExportCSV() {
     lines.push([idx + 1, it.code, it.qty, fmtDate(it.at)].map(csvCell).join(","));
   });
   const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-  triggerDownload(blob, `scan-umkm-${today}.csv`);
+  triggerDownload(blob, `daisoku-${today}.csv`);
   toast(`CSV berhasil diunduh (${items.length} item)`);
 }
 
@@ -479,7 +483,7 @@ $("#btn-export-json").addEventListener("click", () => {
   if (!items.length) return toast("Belum ada data untuk dicadangkan");
   const today = new Date().toISOString().slice(0, 10);
   const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
-  triggerDownload(blob, `backup-scan-umkm-${today}.json`);
+  triggerDownload(blob, `backup-daisoku-${today}.json`);
   toast(`Backup JSON berhasil diunduh`);
   exportDlg.close();
 });

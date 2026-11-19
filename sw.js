@@ -1,4 +1,4 @@
-const CACHE = "scan-umkm-v6";
+const CACHE = "daisoku-v1";
 const FILES = [
   "./", "./index.html", "./style.css", "./app.js",
   "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
