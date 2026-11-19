@@ -15,12 +15,15 @@
 <!-- KAMERA -->
 <div class="cam-wrap">
   <div id="reader"></div>
-  <div class="cam-frame"><span></span><span></span><span></span><span></span></div>
+  <div id="cam-frame" class="cam-frame"><span></span><span></span><span></span><span></span></div>
   <div class="cam-top-bar">
     <button id="btn-torch" class="cam-btn" title="Senter" hidden>🔦</button>
     <button id="btn-switch" class="cam-btn" title="Ganti kamera" hidden>🔄</button>
+    <button id="btn-start" class="cam-btn" title="Pause/Resume">⏸</button>
   </div>
-  <button id="btn-start" class="cam-start">▶ Mulai Scan</button>
+  <div class="cam-status">
+    <span id="cam-status-text">Memulai kamera…</span>
+  </div>
 </div>
 
 <!-- TABEL ITEM -->

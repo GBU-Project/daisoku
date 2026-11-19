@@ -42,14 +42,25 @@ function getScanner() {
   return scanner;
 }
 
+function setStatus(msg, active = false) {
+  const el = $("#cam-status-text");
+  if (el) el.textContent = msg;
+  const frame = $("#cam-frame");
+  if (frame) frame.classList.toggle("active", active);
+}
+
 async function startScan() {
   if (scanning) return;
   if (!window.isSecureContext) { toast("Butuh HTTPS atau localhost"); return; }
+  setStatus("Membuka kamera…");
   const s = getScanner();
   try { if (!cameras.length) cameras = await Html5Qrcode.getCameras(); } catch {}
   const cfg = {
     fps: 15,
-    qrbox: (w, h) => { const side = Math.floor(Math.min(w, h) * 0.6); return { width: side, height: side }; },
+    qrbox: (w, h) => {
+      const side = Math.floor(Math.min(w, h) * 0.75);
+      return { width: side, height: Math.floor(side * 0.6) };
+    },
     aspectRatio: 16 / 9,
   };
   const source = (camIndex > 0 && cameras[camIndex]) ? cameras[camIndex].id : { facingMode: "environment" };
@@ -57,13 +68,17 @@ async function startScan() {
     await s.start(source, cfg, onDecoded, () => {});
     scanning = true;
     const btn = $("#btn-start");
-    btn.textContent = "⏹ Berhenti";
-    btn.classList.add("stop");
+    if (btn) { btn.textContent = "⏸"; btn.title = "Pause"; }
+    setStatus("🟢 Scanning… arahkan ke barcode", true);
     setupTorch();
     $("#btn-switch").hidden = cameras.length < 2;
   } catch (e) {
     const msg = String(e && e.message || e);
-    toast(/permission|denied|NotAllowed/i.test(msg) ? "Izin kamera ditolak" : "Kamera tidak bisa dibuka");
+    const errMsg = /permission|denied|NotAllowed/i.test(msg)
+      ? "❌ Izin kamera ditolak — aktifkan di pengaturan browser"
+      : "❌ Kamera tidak bisa dibuka";
+    setStatus(errMsg, false);
+    toast(errMsg);
   }
 }
 
@@ -72,8 +87,8 @@ async function stopScan() {
   try { await scanner.stop(); scanner.clear(); } catch {}
   scanning = false; torchOn = false;
   const btn = $("#btn-start");
-  btn.textContent = "▶ Mulai Scan";
-  btn.classList.remove("stop");
+  if (btn) { btn.textContent = "▶"; btn.title = "Resume"; }
+  setStatus("⏸ Dijeda — tap ▶ untuk lanjut", false);
   $("#btn-torch").hidden = true;
   $("#btn-torch").classList.remove("on");
   $("#btn-switch").hidden = true;
@@ -314,3 +329,9 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopScan(); });
+
+/* ===== AUTO-START kamera saat halaman dimuat ===== */
+window.addEventListener("load", () => {
+  // Tunda sedikit agar DOM siap
+  setTimeout(() => startScan(), 300);
+});

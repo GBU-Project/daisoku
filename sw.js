@@ -1,4 +1,4 @@
-const CACHE = "scan-umkm-v3";
+const CACHE = "scan-umkm-v4";
 const FILES = [
   "./", "./index.html", "./style.css", "./app.js",
   "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
